@@ -217,6 +217,9 @@ string GetSysType(string sqlType){
 		case "bigint":
 			sysType= "long";
 			break;
+		case "byte":
+			sysType = "byte";
+			break;
 		case "int":
 			sysType= "int";
 			break;
