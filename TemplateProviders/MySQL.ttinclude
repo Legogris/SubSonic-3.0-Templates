@@ -4,6 +4,88 @@
 <#+
 MySqlConnection conn;
 
+string[] GetSPList()
+{
+    var result=new List<SPParam>();
+	const string sql = "SELECT routine_name FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA = ?databaseName";
+	StringBuilder sList = new StringBuilder();
+
+	using(conn=new MySqlConnection(ConnectionString))
+	{
+		MySqlCommand cmd = new MySqlCommand(sql, conn);
+		cmd.Parameters.AddWithValue("?databaseName", DatabaseName);
+		conn.Open();
+		using(IDataReader rdr = cmd.ExecuteReader(CommandBehavior.CloseConnection))
+		{
+			bool isFirst = true;
+			while(rdr.Read())
+			{
+				if(!isFirst)
+					sList.Append('|');
+
+				isFirst = false;
+				sList.Append(rdr[0]);
+			}
+			
+			rdr.Close();
+		}
+	}
+	
+	return sList.ToString().Split(new char[] {'|'}, StringSplitOptions.RemoveEmptyEntries);
+}
+
+List<SPParam> GetSPParams(string spName)
+{
+	var result=new List<SPParam>();
+	MySqlCommand cmd = new MySqlCommand();
+	using(conn=new MySqlConnection(ConnectionString))
+	{
+		conn.Open();
+		cmd.Connection = conn;
+		cmd.CommandText = spName;
+		cmd.CommandType = CommandType.StoredProcedure;
+
+		try
+		{
+			MySqlCommandBuilder.DeriveParameters(cmd);
+		}
+		catch
+		{
+			//string foo = ex.Message;
+		}
+
+		if(cmd.Parameters.Count > 0)
+		{
+			foreach(MySqlParameter param in cmd.Parameters)
+			{
+				SPParam p = new SPParam();
+				p.SysType = GetSysType(param.MySqlDbType.ToString());
+				p.DbType = param.DbType.ToString();
+				p.Name = param.ParameterName;
+				p.CleanName=CleanUp(p.Name);
+				result.Add(p);
+			}
+		}
+	}
+
+	return result;
+}
+
+List<SP> GetSPs(){
+    var result=new List<SP>();
+	string[] spNames = GetSPList();
+	
+    foreach(string spName in spNames){
+	    var sp=new SP();
+	    sp.Name=spName;
+		sp.CleanName=CleanUp(sp.Name);
+		sp.Parameters=GetSPParams(sp.Name);
+		result.Add(sp);        
+    }
+    
+    return result;
+}
+
 
 List<FKTable> LoadFKTables(string tableName){
     string fkSQL=@"SELECT*
